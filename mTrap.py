@@ -175,27 +175,34 @@ def simulate_electron_motion(r0, emission_angle):
     t0, tf = 0, 1e-6 # Adjust this time span based on your requirements
     max_steps = 1e-11
     
-    # Define the event function for bounce detection
+    # Event function for bounce detection (z=0)
     def z_crossing(t, y):
         return y[2]  # y[2] is the z-coordinate
-
-    # The event triggers when the z-coordinate changes sign
     z_crossing.terminal = True
-    z_crossing.direction = -1  # Will trigger on any crossing of z=0
+    z_crossing.direction = -1  # Trigger on crossing z=0
 
-    # Solve the Lorentz-Dirac equations with event handling for bounce
+    # Event function for escape detection (z=0.1)
+    def z_escape(t, y):
+        return y[2] - 0.1  # Check if z-coordinate reaches 0.1
+    z_escape.terminal = True
+    z_escape.direction = 1  # Trigger on reaching z=0.1
+
+    # Solve the Lorentz-Dirac equations with both event handlers
     solution = solve_ivp(lorentz_dirac, [t0, tf], initial_conditions, method='RK45', 
-                         max_step=max_steps, events=z_crossing)
-    
-    # Check if a bounce occurred (i.e., if there is a z-crossing event)
-    if solution.t_events[0].size > 0:
-        # Time of the first z=0 crossing, assuming the electron starts at z>0
+                         max_step=max_steps, events=[z_crossing, z_escape])
+
+    # Check which event occurred
+    bounce_occurred = False
+    if solution.t_events[0].size > 0:  # Check for bounce
         time_to_z0 = solution.t_events[0][0]
-        # Time of return to z=0 is double the time_to_z0
         return_time = 2 * time_to_z0
-        bounce_frequency = (1 / return_time)/ 1e6  # Frequency calculation in MHz
-    else:
-        bounce_frequency = 0  # No bounce detected
+        bounce_frequency = (1 / return_time)/ 1e6  # Frequency in MHz
+        bounce_occurred = True
+    elif solution.t_events[1].size > 0:  # Check for escape
+        bounce_frequency = 0  # No bounce, escaped
+
+    if not bounce_occurred:
+        bounce_frequency = 0  # No event detected (no bounce and no escape)
 
     return bounce_frequency
 
