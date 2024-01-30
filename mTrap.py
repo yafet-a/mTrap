@@ -17,7 +17,6 @@ I = 500  # Current through the coil in Ampere
 R = 0.025  # Coil radius in meter (2.5 cm)
 
 # Function to calculate magnetic field components
-@lru_cache(maxsize=None)  # Decorator to cache results
 def magnetic_field(r, z, Z0):
     """
     Calculate the magnetic field components B_r and B_z for a single coil.
@@ -105,7 +104,6 @@ tau = (e_charge**2) / (6 * np.pi * epsilon_0 * m_e * (c**3))
 emission_angles = np.linspace(76, 89, num=10)  # Adjust the num parameter as needed
 radial_distances = np.linspace(0, 0.024, num=7)  # Adjust the num parameter as needed
 
-# print(f'emission_angles {emission_angles}')
 # Grid for parameter scanning
 parameters = [(r, theta) for r in radial_distances for theta in emission_angles]
 
@@ -152,16 +150,14 @@ def lorentz_dirac(t, y):
     return [vx, vy, vz, ax, ay, az]
 
 
-@lru_cache(maxsize=None)
+# Compute constants outside of the function
+kinetic_energy_eV = 18.6e3
+lorentz_factor = (kinetic_energy_eV * eV) / (m_e * c**2) + 1
+speed = c * np.sqrt(1 - 1 / (lorentz_factor**2))
+
 def simulate_electron_motion(r0, emission_angle):
-    # Kinetic energy in eV (18.6 keV converted to eV)
-    kinetic_energy_eV = 18.6e3
-
-    # Calculate Lorentz factor
-    lorentz_factor = (kinetic_energy_eV * eV) / (m_e * c**2) + 1
-
-    # Calculate velocity using the Lorentz factor
-    speed = c * np.sqrt(1 - 1 / (lorentz_factor**2))
+    # Use pre-computed constants
+    global kinetic_energy_eV, lorentz_factor, speed
     
     # print(f'speed: {speed}')
     
@@ -176,8 +172,8 @@ def simulate_electron_motion(r0, emission_angle):
     initial_conditions = [r0, 0, 0, vx, vy, vz]
 
     # Time span for the simulation (in seconds)
-    t0, tf = 0, 1e-7 # Adjust this time span based on your requirements
-    max_steps = 1e-10
+    t0, tf = 0, 1e-6 # Adjust this time span based on your requirements
+    max_steps = 1e-11
     
     # Define the event function for bounce detection
     def z_crossing(t, y):
@@ -197,7 +193,7 @@ def simulate_electron_motion(r0, emission_angle):
         time_to_z0 = solution.t_events[0][0]
         # Time of return to z=0 is double the time_to_z0
         return_time = 2 * time_to_z0
-        bounce_frequency = 1 / return_time  # Frequency calculation
+        bounce_frequency = (1 / return_time)/ 1e6  # Frequency calculation in MHz
     else:
         bounce_frequency = 0  # No bounce detected
 
@@ -219,15 +215,18 @@ def collect_result(result):
     print(f"{progress_counter.value} / {total_tasks}")
 
 if __name__ == "__main__":
+
     parameters = [(r, theta) for r in radial_distances for theta in emission_angles]
     total_tasks = len(parameters)
+
+    num_processes = 10  # Change this to the number of processes you want to use
 
     # Use Manager to create a shared counter for progress tracking
     with Manager() as manager:
         results = manager.list()  # List to store results
         progress_counter = manager.Value('i', 0)  # Counter initialized to 0
 
-        with Pool() as pool:
+        with Pool(num_processes) as pool:
             # Using apply_async instead of map
             for param in parameters:
                 pool.apply_async(worker_function, args=(param,), callback=collect_result)
@@ -237,6 +236,15 @@ if __name__ == "__main__":
 
         # Convert the manager list back to a regular list
         results = list(results)
+        
+    # Filter results to find the frequency at 76 degrees and 0.024 meters radial distance
+    desired_angle = 76
+    desired_radial_distance = 0.024
+
+    for r, angle, frequency in results:
+        if angle == desired_angle and r == desired_radial_distance:
+            print(f"Frequency at {desired_angle} degrees and {desired_radial_distance} meters: {frequency} MHz")
+
 
     # Convert results to arrays for plotting
     r_values, angle_values, frequencies = zip(*results)
@@ -250,7 +258,7 @@ if __name__ == "__main__":
     sc = ax.scatter(r_values, angle_values, frequencies, c=frequencies)
     ax.set_xlabel('Radial Distance (m)')
     ax.set_ylabel('Emission Angle (degrees)')
-    ax.set_zlabel('Bounce Frequency (Hz)')
+    ax.set_zlabel('Bounce Frequency (MHz)')
     plt.show()
 
 # # Running the simulation with the test parameters
