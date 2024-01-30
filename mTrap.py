@@ -1,7 +1,11 @@
 ''' 
 MTrap project
 Import python code for multiprocessing
+from multiprocessing import Pool
+
 '''
+from functools import lru_cache
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import ellipk, ellipe
@@ -13,6 +17,7 @@ I = 500  # Current through the coil in Ampere
 R = 0.025  # Coil radius in meter (2.5 cm)
 
 # Function to calculate magnetic field components
+@lru_cache(maxsize=None)  # Decorator to cache results
 def magnetic_field(r, z, Z0):
     """
     Calculate the magnetic field components B_r and B_z for a single coil.
@@ -93,7 +98,8 @@ from scipy.constants import e as e_charge, c, m_e, eV
 from scipy.constants import epsilon_0  # Vacuum permittivity
 
 # Define tau for the radiation reaction force factor
-tau = e_charge**2 / (6 * np.pi * epsilon_0 * m_e * c**3)
+tau = (e_charge**2) / (6 * np.pi * epsilon_0 * m_e * (c**3))
+# print(f'tau: {tau}')
 #Parameter Scanning setup. Setting up the grid for paramter scanning by defining the ranges for the emission angles and radial distances
 # Range of emission angles (in degrees) and radial distances (in meters)
 emission_angles = np.linspace(76, 89, num=10)  # Adjust the num parameter as needed
@@ -114,6 +120,7 @@ def lorentz_dirac(t, y):
         return np.zeros_like(y)
     
     gamma = 1 / np.sqrt(1 - v_squared / c**2)
+    # print(f'gamma: {gamma}')
     
     # Magnetic field calculation
     B_r1, B_z1 = magnetic_field(r, z, -0.1)  # Coil 1 at Z0 = -0.1 m
@@ -145,7 +152,7 @@ def lorentz_dirac(t, y):
     return [vx, vy, vz, ax, ay, az]
 
 
-
+@lru_cache(maxsize=None)
 def simulate_electron_motion(r0, emission_angle):
     # Kinetic energy in eV (18.6 keV converted to eV)
     kinetic_energy_eV = 18.6e3
@@ -197,33 +204,54 @@ def simulate_electron_motion(r0, emission_angle):
     return bounce_frequency
 
 
-# Running over the simulations
-results = []
-i = 0
-zero_bounces = 0
-for r, angle in parameters:
-    i+=1
-    print(f'{i} / {(emission_angles.size * radial_distances.size)}')
+from multiprocessing import Pool, Manager
+
+def worker_function(args):
+    r, angle = args
     frequency = simulate_electron_motion(r, angle)
-    results.append((r, angle, frequency))
+    return r, angle, frequency
 
-print(f'results: {results}')
+def collect_result(result):
+    global results
+    global progress_counter
+    results.append(result)
+    progress_counter.value += 1
+    print(f"{progress_counter.value} / {total_tasks}")
 
-from mpl_toolkits.mplot3d import Axes3D
-import matplotlib.pyplot as plt
+if __name__ == "__main__":
+    parameters = [(r, theta) for r in radial_distances for theta in emission_angles]
+    total_tasks = len(parameters)
 
-# Convert results to arrays for plotting
-r_values, angle_values, frequencies = zip(*results)
+    # Use Manager to create a shared counter for progress tracking
+    with Manager() as manager:
+        results = manager.list()  # List to store results
+        progress_counter = manager.Value('i', 0)  # Counter initialized to 0
 
+        with Pool() as pool:
+            # Using apply_async instead of map
+            for param in parameters:
+                pool.apply_async(worker_function, args=(param,), callback=collect_result)
 
-# Plotting 3D Plot
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-sc = ax.scatter(r_values, angle_values, frequencies, c=frequencies)
-ax.set_xlabel('Radial Distance (m)')
-ax.set_ylabel('Emission Angle (degrees)')
-ax.set_zlabel('Bounce Frequency (Hz)')
-plt.show()
+            pool.close()
+            pool.join()
+
+        # Convert the manager list back to a regular list
+        results = list(results)
+
+    # Convert results to arrays for plotting
+    r_values, angle_values, frequencies = zip(*results)
+
+    # Plotting 3D Plot
+    from mpl_toolkits.mplot3d import Axes3D
+    import matplotlib.pyplot as plt
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    sc = ax.scatter(r_values, angle_values, frequencies, c=frequencies)
+    ax.set_xlabel('Radial Distance (m)')
+    ax.set_ylabel('Emission Angle (degrees)')
+    ax.set_zlabel('Bounce Frequency (Hz)')
+    plt.show()
 
 # # Running the simulation with the test parameters
 # r0 = 0
