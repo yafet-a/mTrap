@@ -65,7 +65,6 @@ plt.ylabel('Magnetic Field Magnitude (T)')
 plt.title('Magnetic Field Magnitude Along the z-axis for Different Radii')
 plt.legend()
 plt.grid(True)
-plt.show()
 
 """Part 2: Begin"""
 from scipy.constants import e as e_charge, c, m_e, eV
@@ -76,8 +75,8 @@ tau = (e_charge**2) / (6 * np.pi * epsilon_0 * m_e * (c**3))
 # print(f'tau: {tau}')
 #Parameter Scanning setup. Setting up the grid for paramter scanning by defining the ranges for the emission angles and radial distances
 # Range of emission angles (in degrees) and radial distances (in meters)
-emission_angles = np.linspace(76, 89, num=2)  
-radial_distances = np.linspace(0, 0.024, num=2)  
+emission_angles = np.linspace(76, 89, num=10)  
+radial_distances = np.linspace(0, 0.024, num=7)  
 
 
 parameters = [(r, theta) for r in radial_distances for theta in emission_angles]
@@ -186,49 +185,27 @@ def worker_function(args):
     frequency = simulate_electron_motion(r, angle)
     return r, angle, frequency
 
-def collect_result(result):
-    global results
-    global progress_counter
-    results.append(result)
-    progress_counter.value += 1
-    print(f"{progress_counter.value} / {total_tasks}")
-
 if __name__ == "__main__":
 
     parameters = [(r, theta) for r in radial_distances for theta in emission_angles]
-    total_tasks = len(parameters)
 
+    with Pool() as pool:
+        results = pool.map(worker_function, parameters)
 
-    # Use Manager for the counter and list
-    with Manager() as manager:
-        results = manager.list()  # List to store results
-        progress_counter = manager.Value('i', 0)  # Counter initialized to 0
-
-        with Pool() as pool:
-            # apply_async for the counter
-            for param in parameters:
-                pool.apply_async(worker_function, args=(param,), callback=collect_result)
-
-            pool.close()
-            pool.join()
-
-        # Convert the manager list back to a regular list
-        results = list(results)
-        
+    # Filter results to find the frequency at 76 degrees and 0.024 meters radial distance
     desired_angle = 76
     desired_radial_distance = 0.024
-
-    for r, angle, frequency in results:
-        if angle == desired_angle and r == desired_radial_distance:
-            print(f"Frequency at {desired_angle} degrees and {desired_radial_distance} meters: {frequency} MHz")
-
 
     # Convert results to arrays for plotting
     r_values, angle_values, frequencies = zip(*results)
 
     # Convert radial distance to cm
     r_values_cm = [r * 100 for r in r_values]
-
+    
+    for r, angle, frequency in results:
+        if angle == desired_angle and r == desired_radial_distance:
+            print(f"Frequency at {desired_angle} degrees and {desired_radial_distance * 100} cm: {frequency} MHz")
+            
     # Plotting 3D Plot
     from mpl_toolkits.mplot3d import Axes3D
     import matplotlib.pyplot as plt
@@ -239,4 +216,5 @@ if __name__ == "__main__":
     ax.set_xlabel('Radial Distance (cm)')
     ax.set_ylabel('Emission Angle (degrees)')
     ax.set_zlabel('Bounce Frequency (MHz)')
+
     plt.show()
