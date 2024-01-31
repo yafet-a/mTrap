@@ -5,7 +5,6 @@ from scipy.integrate import solve_ivp
 from scipy import constants
 from multiprocessing import Pool, Manager
 
-
 # Constants
 mu_0 = constants.mu_0  # Vacuum permeability
 # Vacuum permeability
@@ -63,26 +62,28 @@ def total_magnetic_field_magnitude(r, z):
 z_values = np.linspace(-0.15, 0.15, 500)  # z-axis interval between -15 cm and 15 cm
 radii = np.linspace(0, 0.024, 5)  # 5 radii from 0 cm to 2.4 cm
 
-# Plotting
-plt.figure(figsize=(10, 6))
-for r in radii:
-    B_magnitudes = [total_magnetic_field_magnitude(r, z) for z in z_values]
-    plt.plot(z_values, B_magnitudes, label=f'r = {r:.3f} m')
-# Specify the r and z values
+
 r_test = 0.012  # Replace with your desired r value
 z_test = -0.05  # Replace with your desired z value
 
 # Calculate the magnetic field magnitude
 B_magnitude = total_magnetic_field_magnitude(r_test, z_test)
+print(f'Magnetic field magnitude at r={r_test} m and z={z_test} m: {B_magnitude} T')
+# Convert radii from meters to centimeters for plotting
+radii_cm = radii * 100  # Convert to cm
 
-# Print the magnetic field magnitude
-print(f"Magnetic field magnitude at r = {r_test} m and z = {z_test} m: {B_magnitude} T")
+plt.figure(figsize=(10, 6))
+for r_cm in radii_cm:
+    r_m = r_cm / 100  # Convert back to meters for calculation
+    B_magnitudes = [total_magnetic_field_magnitude(r_m, z) for z in z_values]
+    plt.plot(z_values, B_magnitudes, label=f'r = {r_cm:.1f} cm')
+
 plt.xlabel('z-coordinate (m)')
 plt.ylabel('Magnetic Field Magnitude (T)')
 plt.title('Magnetic Field Magnitude Along the z-axis for Different Radii')
 plt.legend()
 plt.grid(True)
-# plt.show()
+plt.show()
 
 
 """Part 2: Begin"""
@@ -96,7 +97,7 @@ tau = (e_charge**2) / (6 * np.pi * epsilon_0 * m_e * (c**3))
 # Range of emission angles (in degrees) and radial distances (in meters)
 emission_angles = np.linspace(76, 89, num=2)  
 radial_distances = np.linspace(0, 0.024, num=2)  
-
+# print(f'e charge: {e_charge}')
 # Grid for parameter scanning
 parameters = [(r, theta) for r in radial_distances for theta in emission_angles]
 
@@ -159,7 +160,7 @@ def simulate_electron_motion(r0, emission_angle):
     # Assuming the electron is emitted in the xy-plane, we can set vx and vy based on the emission angle
     vz = speed * np.cos(angle_rad)
     vy = speed * np.sin(angle_rad)
-    vx = 0  # Initial velocity in the z-direction is set to 0
+    vx = 0 
 
     # Initial conditions
     initial_conditions = [r0, 0, 0, vx, vy, vz]
@@ -257,7 +258,7 @@ if __name__ == "__main__":
     ax.set_zlabel('Bounce Frequency (MHz)')
     plt.show()
     
-"""Electron Trajectory in the Magnetic Field"""
+# """Electron Trajectory in the Magnetic Field"""
 # # Running the simulation with the test parameters
 # r0 = 0
 # # Kinetic energy in eV (18.6 keV converted to eV)
@@ -277,17 +278,17 @@ if __name__ == "__main__":
 # vx = 0  # Initial velocity in the x-direction is set to 0
 # initial_conditions = [r0, 0, 0, vx, vy, vz]
 # solution_test = solve_ivp(lorentz_dirac, [0, 1e-7], initial_conditions, method='RK45', max_step=max_steps)
-# # # Plotting the trajectory
-# # fig = plt.figure()
-# # ax = fig.add_subplot(projection="3d")
-# # ax.plot(solution_test.y[0], solution_test.y[1], solution_test.y[2])
+# # Plotting the trajectory
+# fig = plt.figure()
+# ax = fig.add_subplot(projection="3d")
+# ax.plot(solution_test.y[0], solution_test.y[1], solution_test.y[2])
 
-# # ax.set_xlabel('X Coordinate')
-# # ax.set_ylabel('Y Coordinate')
-# # ax.set_zlabel('Z Coordinate')
-# # ax.set_title('Electron Trajectory in the Magnetic Field')
+# ax.set_xlabel('X Coordinate')
+# ax.set_ylabel('Y Coordinate')
+# ax.set_zlabel('Z Coordinate')
+# ax.set_title('Electron Trajectory in the Magnetic Field')
 
-# # plt.show()
+# plt.show()
 
 
 """Last 200 points of Electron Trajectory in the Magnetic Field"""
