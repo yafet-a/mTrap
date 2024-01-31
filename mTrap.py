@@ -1,33 +1,22 @@
-''' 
-MTrap project
-Import python code for multiprocessing
-from multiprocessing import Pool
-
-'''
-from functools import lru_cache
-
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import ellipk, ellipe
 from scipy.integrate import solve_ivp
+from scipy import constants
+from multiprocessing import Pool, Manager
+
 
 # Constants
-mu_0 = 4 * np.pi * 1e-7  # Vacuum permeability
+mu_0 = constants.mu_0  # Vacuum permeability
+# Vacuum permeability
 I = 500  # Current through the coil in Ampere
 R = 0.025  # Coil radius in meter (2.5 cm)
 
 # Function to calculate magnetic field components
 def magnetic_field(r, z, Z0):
-    """
-    Calculate the magnetic field components B_r and B_z for a single coil.
-    :param r: radial distance from the z-axis (m)
-    :param z: z-coordinate (m)
-    :param Z0: z-coordinate of the coil center (m)
-    :return: B_r, B_z - radial and axial components of the magnetic field (T)
-    """
+    
     z_rel = z - Z0
     if r == 0:
-        # Special case for the z-axis
         B_r = 0
         B_z = mu_0 * I * R**2 / (2 * ((R**2) + (z_rel**2))**(3/2))
     else:
@@ -51,12 +40,7 @@ B_r_test, B_z_test  # Return the magnetic field components for testing
 
 # Function to calculate total magnetic field magnitude
 def total_magnetic_field_magnitude(r, z):
-    """
-    Calculate the total magnetic field magnitude for a given r and z.
-    :param r: radial distance from the z-axis (m)
-    :param z: z-coordinate (m)
-    :return: Total magnetic field magnitude (T)
-    """
+    
     # Coil centers
     Z0_1 = -0.1  # -10 cm
     Z0_2 = 0.1   # 10 cm
@@ -79,18 +63,27 @@ def total_magnetic_field_magnitude(r, z):
 z_values = np.linspace(-0.15, 0.15, 500)  # z-axis interval between -15 cm and 15 cm
 radii = np.linspace(0, 0.024, 5)  # 5 radii from 0 cm to 2.4 cm
 
-# # Plotting
-# plt.figure(figsize=(10, 6))
-# for r in radii:
-#     B_magnitudes = [total_magnetic_field_magnitude(r, z) for z in z_values]
-#     plt.plot(z_values, B_magnitudes, label=f'r = {r:.3f} m')
+# Plotting
+plt.figure(figsize=(10, 6))
+for r in radii:
+    B_magnitudes = [total_magnetic_field_magnitude(r, z) for z in z_values]
+    plt.plot(z_values, B_magnitudes, label=f'r = {r:.3f} m')
+# Specify the r and z values
+r_test = 0.012  # Replace with your desired r value
+z_test = -0.05  # Replace with your desired z value
 
-# plt.xlabel('z-coordinate (m)')
-# plt.ylabel('Magnetic Field Magnitude (T)')
-# plt.title('Magnetic Field Magnitude Along the z-axis for Different Radii')
-# plt.legend()
-# plt.grid(True)
+# Calculate the magnetic field magnitude
+B_magnitude = total_magnetic_field_magnitude(r_test, z_test)
+
+# Print the magnetic field magnitude
+print(f"Magnetic field magnitude at r = {r_test} m and z = {z_test} m: {B_magnitude} T")
+plt.xlabel('z-coordinate (m)')
+plt.ylabel('Magnetic Field Magnitude (T)')
+plt.title('Magnetic Field Magnitude Along the z-axis for Different Radii')
+plt.legend()
+plt.grid(True)
 # plt.show()
+
 
 """Part 2: Begin"""
 from scipy.constants import e as e_charge, c, m_e, eV
@@ -101,8 +94,8 @@ tau = (e_charge**2) / (6 * np.pi * epsilon_0 * m_e * (c**3))
 # print(f'tau: {tau}')
 #Parameter Scanning setup. Setting up the grid for paramter scanning by defining the ranges for the emission angles and radial distances
 # Range of emission angles (in degrees) and radial distances (in meters)
-emission_angles = np.linspace(76, 89, num=10)  # Adjust the num parameter as needed
-radial_distances = np.linspace(0, 0.024, num=7)  # Adjust the num parameter as needed
+emission_angles = np.linspace(76, 89, num=2)  
+radial_distances = np.linspace(0, 0.024, num=2)  
 
 # Grid for parameter scanning
 parameters = [(r, theta) for r in radial_distances for theta in emission_angles]
@@ -113,7 +106,7 @@ def lorentz_dirac(t, y):
     v = np.array([vx, vy, vz])
     v_squared = np.dot(v, v)
     
-    # Prevent superluminal speeds
+    # Prevent ftl speeds
     if v_squared >= c**2:
         return np.zeros_like(y)
     
@@ -160,7 +153,7 @@ def simulate_electron_motion(r0, emission_angle):
     global kinetic_energy_eV, lorentz_factor, speed
     
     # print(f'speed: {speed}')
-    
+
     # Convert angle to radians and calculate initial velocity components
     angle_rad = np.radians(emission_angle)
     # Assuming the electron is emitted in the xy-plane, we can set vx and vy based on the emission angle
@@ -172,7 +165,7 @@ def simulate_electron_motion(r0, emission_angle):
     initial_conditions = [r0, 0, 0, vx, vy, vz]
 
     # Time span for the simulation (in seconds)
-    t0, tf = 0, 1e-6 # Adjust this time span based on your requirements
+    t0, tf = 0, 1e-6 # Time span
     max_steps = 1e-11
     
     # Event function for bounce detection (z=0)
@@ -206,9 +199,6 @@ def simulate_electron_motion(r0, emission_angle):
 
     return bounce_frequency
 
-
-from multiprocessing import Pool, Manager
-
 def worker_function(args):
     r, angle = args
     frequency = simulate_electron_motion(r, angle)
@@ -226,15 +216,14 @@ if __name__ == "__main__":
     parameters = [(r, theta) for r in radial_distances for theta in emission_angles]
     total_tasks = len(parameters)
 
-    num_processes = 10  # Change this to the number of processes you want to use
 
-    # Use Manager to create a shared counter for progress tracking
+    # Use Manager for the counter and list
     with Manager() as manager:
         results = manager.list()  # List to store results
         progress_counter = manager.Value('i', 0)  # Counter initialized to 0
 
-        with Pool(num_processes) as pool:
-            # Using apply_async instead of map
+        with Pool() as pool:
+            # apply_async for the counter
             for param in parameters:
                 pool.apply_async(worker_function, args=(param,), callback=collect_result)
 
@@ -267,7 +256,8 @@ if __name__ == "__main__":
     ax.set_ylabel('Emission Angle (degrees)')
     ax.set_zlabel('Bounce Frequency (MHz)')
     plt.show()
-
+    
+"""Electron Trajectory in the Magnetic Field"""
 # # Running the simulation with the test parameters
 # r0 = 0
 # # Kinetic energy in eV (18.6 keV converted to eV)
@@ -299,6 +289,8 @@ if __name__ == "__main__":
 
 # # plt.show()
 
+
+"""Last 200 points of Electron Trajectory in the Magnetic Field"""
 # points_to_plot = 200  # Define how many points we want to examine
 
 # # Extract the coordinates of the first few points
@@ -316,4 +308,38 @@ if __name__ == "__main__":
 # ax.set_zlabel('Z Coordinate')
 # ax.set_title('Segment of the Electron Trajectory in the Magnetic Field')
 
+# plt.show()
+
+""""Velocity against time"""
+# # Running the simulation with the test parameters
+# r0 = 0
+# # Kinetic energy in eV (18.6 keV converted to eV)
+# kinetic_energy_eV = 18.6e3
+
+# # Calculate Lorentz factor
+# lorentz_factor = (kinetic_energy_eV * eV) / (m_e * c**2) + 1
+
+# # Event function for bounce detection (z=0)
+# def z_crossing(t, y):
+#     return y[2]  # y[2] is the z-coordinate
+# z_crossing.terminal = True
+# z_crossing.direction = -1  # Trigger on crossing z=0
+
+# # Event function for escape detection (z=0.1)
+# def z_escape(t, y):
+#     return y[2] - 0.1  # Check if z-coordinate reaches 0.1
+# z_escape.terminal = True
+# z_escape.direction = 1  # Trigger on reaching z=0.1
+
+# # Calculate velocity using the Lorentz factor
+# v0 = c * np.sqrt(1 - 1 / (lorentz_factor**2))
+# solution_alfie = solve_ivp(lorentz_dirac, [0, 1e-8], [0.024, 0, 0, v0 * np.sin(np.radians(76)), 0, v0 * np.cos(np.radians(76))], events=[z_crossing, z_escape], max_step=1e-12)
+# vz = solution_alfie.y[5]
+# time = solution_alfie.t
+
+# plt.figure()
+# plt.plot(time, vz)
+# plt.xlabel('Time (s)')
+# plt.ylabel('Velocity (m/s)')
+# plt.title('Velocity vs Time')
 # plt.show()
