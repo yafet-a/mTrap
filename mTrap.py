@@ -185,27 +185,43 @@ def worker_function(args):
     frequency = simulate_electron_motion(r, angle)
     return r, angle, frequency
 
+def collect_result(result):
+    global res
+    global progress_counter
+    res.append(result)
+    progress_counter.value += 1
+    print(f"{progress_counter.value} / {total_tasks}")
+
 if __name__ == "__main__":
 
     parameters = [(r, theta) for r in radial_distances for theta in emission_angles]
+    total_tasks = len(parameters)
 
-    with Pool() as pool:
-        results = pool.map(worker_function, parameters)
 
-    # Filter results to find the frequency at 76 degrees and 0.024 meters radial distance
+    with Manager() as manager:
+        res = manager.list()  # List to store results
+        progress_counter = manager.Value('i', 0)  # Counter initialized to 0
+
+        with Pool() as pool:
+            # apply_async for the counter
+            for param in parameters:
+                pool.apply_async(worker_function, args=(param,), callback=collect_result)
+
+            pool.close()
+            pool.join()
+
+        # Convert the manager list back to a regular list
+        res = list(res)
+        
     desired_angle = 76
     desired_radial_distance = 0.024
-
+    
     # Convert results to arrays for plotting
-    r_values, angle_values, frequencies = zip(*results)
+    r_values, angle_values, frequencies = zip(*res)
 
     # Convert radial distance to cm
     r_values_cm = [r * 100 for r in r_values]
-    
-    for r, angle, frequency in results:
-        if angle == desired_angle and r == desired_radial_distance:
-            print(f"Frequency at {desired_angle} degrees and {desired_radial_distance * 100} cm: {frequency} MHz")
-            
+
     # Plotting 3D Plot
     from mpl_toolkits.mplot3d import Axes3D
     import matplotlib.pyplot as plt
@@ -216,5 +232,4 @@ if __name__ == "__main__":
     ax.set_xlabel('Radial Distance (cm)')
     ax.set_ylabel('Emission Angle (degrees)')
     ax.set_zlabel('Bounce Frequency (MHz)')
-
     plt.show()
