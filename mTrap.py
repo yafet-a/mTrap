@@ -9,7 +9,7 @@ from multiprocessing import Pool, Manager
 mu_0 = constants.mu_0  # Vacuum permeability
 # Vacuum permeability
 I = 500  # Current through the coil in Ampere
-R = 0.025  # Coil radius in meter (2.5 cm)
+R = 0.025  # Coil radius in meters (2.5 cm)
 
 # Function to calculate magnetic field components
 def magnetic_field(r, z, Z0):
@@ -28,14 +28,6 @@ def magnetic_field(r, z, Z0):
         B_z = common_factor / np.sqrt((R + r)**2 + z_rel**2) * ((R**2 - r**2 - z_rel**2) / ((R - r)**2 + z_rel**2) * E + K)
     
     return B_r, B_z
-
-# Test the magnetic field calculation at a specific point
-test_r = 0.01  # 1 cm from z-axis
-test_z = 0.05  # 5 cm along the z-axis
-test_Z0 = -0.1  # Coil center at z=-10 cm
-
-B_r_test, B_z_test = magnetic_field(test_r, test_z, test_Z0)
-B_r_test, B_z_test  # Return the magnetic field components for testing
 
 # Function to calculate total magnetic field magnitude
 def total_magnetic_field_magnitude(r, z):
@@ -57,34 +49,23 @@ def total_magnetic_field_magnitude(r, z):
     B_total_magnitude = np.sqrt(B_r_total**2 + B_z_total**2)
     return B_total_magnitude
     
-
 # Prepare data for plotting
-z_values = np.linspace(-0.15, 0.15, 500)  # z-axis interval between -15 cm and 15 cm
-radii = np.linspace(0, 0.024, 5)  # 5 radii from 0 cm to 2.4 cm
+z_values = np.linspace(-15, 15, 500)  # z-axis interval between -15 cm and 15 cm
+radii = np.linspace(0, 2.4, 5)  # 5 radii from 0 cm to 2.4 cm
 
-
-r_test = 0.012  # Replace with your desired r value
-z_test = -0.05  # Replace with your desired z value
-
-# Calculate the magnetic field magnitude
-B_magnitude = total_magnetic_field_magnitude(r_test, z_test)
-print(f'Magnetic field magnitude at r={r_test} m and z={z_test} m: {B_magnitude} T')
-# Convert radii from meters to centimeters for plotting
-radii_cm = radii * 100  # Convert to cm
 
 plt.figure(figsize=(10, 6))
-for r_cm in radii_cm:
+for r_cm in radii:
     r_m = r_cm / 100  # Convert back to meters for calculation
-    B_magnitudes = [total_magnetic_field_magnitude(r_m, z) for z in z_values]
+    B_magnitudes = [total_magnetic_field_magnitude(r_m, z/100) for z in z_values]
     plt.plot(z_values, B_magnitudes, label=f'r = {r_cm:.1f} cm')
 
-plt.xlabel('z-coordinate (m)')
+plt.xlabel('z-coordinate (cm)')
 plt.ylabel('Magnetic Field Magnitude (T)')
 plt.title('Magnetic Field Magnitude Along the z-axis for Different Radii')
 plt.legend()
 plt.grid(True)
 plt.show()
-
 
 """Part 2: Begin"""
 from scipy.constants import e as e_charge, c, m_e, eV
@@ -97,8 +78,8 @@ tau = (e_charge**2) / (6 * np.pi * epsilon_0 * m_e * (c**3))
 # Range of emission angles (in degrees) and radial distances (in meters)
 emission_angles = np.linspace(76, 89, num=2)  
 radial_distances = np.linspace(0, 0.024, num=2)  
-# print(f'e charge: {e_charge}')
-# Grid for parameter scanning
+
+
 parameters = [(r, theta) for r in radial_distances for theta in emission_angles]
 
 def lorentz_dirac(t, y):
@@ -234,7 +215,6 @@ if __name__ == "__main__":
         # Convert the manager list back to a regular list
         results = list(results)
         
-    # Filter results to find the frequency at 76 degrees and 0.024 meters radial distance
     desired_angle = 76
     desired_radial_distance = 0.024
 
@@ -246,101 +226,17 @@ if __name__ == "__main__":
     # Convert results to arrays for plotting
     r_values, angle_values, frequencies = zip(*results)
 
+    # Convert radial distance to cm
+    r_values_cm = [r * 100 for r in r_values]
+
     # Plotting 3D Plot
     from mpl_toolkits.mplot3d import Axes3D
     import matplotlib.pyplot as plt
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    sc = ax.scatter(r_values, angle_values, frequencies, c=frequencies)
-    ax.set_xlabel('Radial Distance (m)')
+    sc = ax.scatter(r_values_cm, angle_values, frequencies, c=frequencies)
+    ax.set_xlabel('Radial Distance (cm)')
     ax.set_ylabel('Emission Angle (degrees)')
     ax.set_zlabel('Bounce Frequency (MHz)')
     plt.show()
-    
-# """Electron Trajectory in the Magnetic Field"""
-# # Running the simulation with the test parameters
-# r0 = 0
-# # Kinetic energy in eV (18.6 keV converted to eV)
-# kinetic_energy_eV = 18.6e3
-
-# # Calculate Lorentz factor
-# lorentz_factor = (kinetic_energy_eV * eV) / (m_e * c**2) + 1
-
-# # Calculate velocity using the Lorentz factor
-# speed = c * np.sqrt(1 - 1 / (lorentz_factor**2))
-# # Convert angle to radians and calculate initial velocity components
-# angle_rad = np.radians(76)
-# # Assuming the electron is emitted in the xy-plane, we can set vx and vy based on the emission angle
-# vz = speed * np.cos(angle_rad)
-# vy = speed * np.sin(angle_rad)
-# max_steps = 1e-12
-# vx = 0  # Initial velocity in the x-direction is set to 0
-# initial_conditions = [r0, 0, 0, vx, vy, vz]
-# solution_test = solve_ivp(lorentz_dirac, [0, 1e-7], initial_conditions, method='RK45', max_step=max_steps)
-# # Plotting the trajectory
-# fig = plt.figure()
-# ax = fig.add_subplot(projection="3d")
-# ax.plot(solution_test.y[0], solution_test.y[1], solution_test.y[2])
-
-# ax.set_xlabel('X Coordinate')
-# ax.set_ylabel('Y Coordinate')
-# ax.set_zlabel('Z Coordinate')
-# ax.set_title('Electron Trajectory in the Magnetic Field')
-
-# plt.show()
-
-
-"""Last 200 points of Electron Trajectory in the Magnetic Field"""
-# points_to_plot = 200  # Define how many points we want to examine
-
-# # Extract the coordinates of the first few points
-# x_coords = solution_test.y[0][:points_to_plot]
-# y_coords = solution_test.y[1][:points_to_plot]
-# z_coords = solution_test.y[2][:points_to_plot]
-
-# # Now let's plot these points to visualize the trajectory segment
-# plt.figure()
-# ax = plt.axes(projection='3d')
-# ax.plot(x_coords, y_coords, z_coords, marker='')
-
-# ax.set_xlabel('X Coordinate')
-# ax.set_ylabel('Y Coordinate')
-# ax.set_zlabel('Z Coordinate')
-# ax.set_title('Segment of the Electron Trajectory in the Magnetic Field')
-
-# plt.show()
-
-""""Velocity against time"""
-# # Running the simulation with the test parameters
-# r0 = 0
-# # Kinetic energy in eV (18.6 keV converted to eV)
-# kinetic_energy_eV = 18.6e3
-
-# # Calculate Lorentz factor
-# lorentz_factor = (kinetic_energy_eV * eV) / (m_e * c**2) + 1
-
-# # Event function for bounce detection (z=0)
-# def z_crossing(t, y):
-#     return y[2]  # y[2] is the z-coordinate
-# z_crossing.terminal = True
-# z_crossing.direction = -1  # Trigger on crossing z=0
-
-# # Event function for escape detection (z=0.1)
-# def z_escape(t, y):
-#     return y[2] - 0.1  # Check if z-coordinate reaches 0.1
-# z_escape.terminal = True
-# z_escape.direction = 1  # Trigger on reaching z=0.1
-
-# # Calculate velocity using the Lorentz factor
-# v0 = c * np.sqrt(1 - 1 / (lorentz_factor**2))
-# solution_alfie = solve_ivp(lorentz_dirac, [0, 1e-8], [0.024, 0, 0, v0 * np.sin(np.radians(76)), 0, v0 * np.cos(np.radians(76))], events=[z_crossing, z_escape], max_step=1e-12)
-# vz = solution_alfie.y[5]
-# time = solution_alfie.t
-
-# plt.figure()
-# plt.plot(time, vz)
-# plt.xlabel('Time (s)')
-# plt.ylabel('Velocity (m/s)')
-# plt.title('Velocity vs Time')
-# plt.show()
